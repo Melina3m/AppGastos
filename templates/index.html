@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Control de Gastos</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body {
+            font-family: Arial;
+            background: #1e1e2f;
+            color: white;
+            padding: 20px;
+        }
+        input, select, button {
+            width: 100%;
+            margin: 5px 0;
+            padding: 10px;
+        }
+        .card {
+            background: #2c2c3e;
+            padding: 10px;
+            margin-top: 10px;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body>
+
+<h2>💰 Control de Gastos</h2>
+
+<form method="POST" action="/agregar">
+    <select name="tipo">
+        <option value="ingreso">Ingreso</option>
+        <option value="gasto">Gasto</option>
+    </select>
+
+    <input type="text" name="nombre" placeholder="Nombre (si es gasto)">
+    <input type="number" name="monto" placeholder="Monto" required>
+    <input type="date" name="fecha" required>
+
+    <button type="submit">Guardar</button>
+</form>
+
+<h3>📋 Movimientos</h3>
+
+{% for g in data.gastos %}
+<div class="card">
+    {{g.fecha}} | {{g.nombre}} | ${{g.monto}} | {{g.quincena}}
+</div>
+{% endfor %}
+
+{% for i in data.ingresos %}
+<div class="card">
+    {{i.fecha}} | INGRESO | ${{i.monto}} | {{i.quincena}}
+</div>
+{% endfor %}
+
+</body>
+</html>
