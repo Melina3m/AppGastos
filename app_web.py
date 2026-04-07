@@ -9,6 +9,8 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 
 
 def get_conn():
+    if not DATABASE_URL:
+        raise RuntimeError("DATABASE_URL no configurada")
     return psycopg2.connect(DATABASE_URL, sslmode='require')
 
 
@@ -17,70 +19,79 @@ def quincena(fecha):
 
 
 def crear_tablas():
-    conn = get_conn()
-    cur = conn.cursor()
+    try:
+        conn = get_conn()
+        cur = conn.cursor()
 
-    # 👤 USUARIOS
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS usuarios (
-        id SERIAL PRIMARY KEY,
-        username TEXT UNIQUE,
-        password TEXT
-    );
-    """)
+        # 👤 USUARIOS
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS usuarios (
+            id SERIAL PRIMARY KEY,
+            username TEXT UNIQUE,
+            password TEXT
+        );
+        """)
 
-    # 💰 INGRESOS
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS ingresos (
-        id SERIAL PRIMARY KEY,
-        monto FLOAT,
-        fecha DATE,
-        quincena TEXT,
-        user_id INT
-    );
-    """)
+        # 💰 INGRESOS
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS ingresos (
+            id SERIAL PRIMARY KEY,
+            monto FLOAT,
+            fecha DATE,
+            quincena TEXT,
+            user_id INT
+        );
+        """)
 
-    # 💸 GASTOS
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS gastos (
-        id SERIAL PRIMARY KEY,
-        nombre TEXT,
-        monto FLOAT,
-        fecha DATE,
-        quincena TEXT,
-        categoria TEXT,
-        user_id INT
-    );
-    """)
+        # 💸 GASTOS
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS gastos (
+            id SERIAL PRIMARY KEY,
+            nombre TEXT,
+            monto FLOAT,
+            fecha DATE,
+            quincena TEXT,
+            categoria TEXT,
+            user_id INT
+        );
+        """)
 
-    # 💳 DEUDAS
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS deudas (
-        id SERIAL PRIMARY KEY,
-        user_id INT,
-        total FLOAT
-    );
-    """)
+        # 💳 DEUDAS
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS deudas (
+            id SERIAL PRIMARY KEY,
+            user_id INT,
+            total FLOAT
+        );
+        """)
 
-    # 🔥 FIX AUTOMÁTICO (ESTO ES LO IMPORTANTE)
-    cur.execute("""
-    DO $$
-    BEGIN
-        IF NOT EXISTS (
-            SELECT 1 FROM information_schema.columns 
-            WHERE table_name='gastos' AND column_name='categoria'
-        ) THEN
-            ALTER TABLE gastos ADD COLUMN categoria TEXT;
-        END IF;
-    END $$;
-    """)
+        # 🔥 FIX AUTOMÁTICO (ESTO ES LO IMPORTANTE)
+        cur.execute("""
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM information_schema.columns 
+                WHERE table_name='gastos' AND column_name='categoria'
+            ) THEN
+                ALTER TABLE gastos ADD COLUMN categoria TEXT;
+            END IF;
+        END $$;
+        """)
 
-    conn.commit()
-    cur.close()
-    conn.close()
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        print("Error al crear tablas:", e)
 
 
-crear_tablas()
+if DATABASE_URL:
+    try:
+        crear_tablas()
+    except Exception as e:
+        print("No se pudo inicializar la base de datos:", e)
+else:
+    print("WARNING: DATABASE_URL no configurada. La aplicación iniciará pero no podrá conectarse a la base de datos.")
 
 
 @app.before_request
@@ -99,17 +110,21 @@ def login():
         user = request.form["username"]
         password = request.form["password"]
 
-        conn = get_conn()
-        cur = conn.cursor()
+        try:
+            conn = get_conn()
+            cur = conn.cursor()
 
-        cur.execute(
-            "SELECT id FROM usuarios WHERE username=%s AND password=%s",
-            (user, password)
-        )
-        result = cur.fetchone()
+            cur.execute(
+                "SELECT id FROM usuarios WHERE username=%s AND password=%s",
+                (user, password)
+            )
+            result = cur.fetchone()
 
-        cur.close()
-        conn.close()
+            cur.close()
+            conn.close()
+        except Exception as e:
+            print("Login DB error:", e)
+            return "Error de base de datos. Intenta más tarde."
 
         if result:
             session["user_id"] = result[0]
@@ -127,23 +142,34 @@ def registro():
         user = request.form["username"]
         password = request.form["password"]
 
-        conn = get_conn()
-        cur = conn.cursor()
-
         try:
+            conn = get_conn()
+            cur = conn.cursor()
+
             cur.execute(
                 "INSERT INTO usuarios (username, password) VALUES (%s, %s)",
                 (user, password)
             )
             conn.commit()
-        except:
-            conn.rollback()
+        except psycopg2.Error as e:
+            if 'conn' in locals():
+                conn.rollback()
+            if 'cur' in locals():
+                cur.close()
+            if 'conn' in locals():
+                conn.close()
+            print("Registro DB error:", e)
+            return "El usuario ya existe o hubo un error de base de datos"
+        except Exception as e:
+            if 'cur' in locals():
+                cur.close()
+            if 'conn' in locals():
+                conn.close()
+            print("Registro error:", e)
+            return "Error de base de datos. Intenta más tarde."
+        else:
             cur.close()
             conn.close()
-            return "El usuario ya existe"
-
-        cur.close()
-        conn.close()
 
         return redirect("/login")
 
@@ -163,11 +189,12 @@ def index():
         return redirect("/login")
 
     mes = request.args.get("mes")
-
-    conn = get_conn()
-    cur = conn.cursor()
+    error_message = None
 
     try:
+        conn = get_conn()
+        cur = conn.cursor()
+
         if mes:
             cur.execute("""
                 SELECT fecha, nombre, monto, quincena, COALESCE(categoria, 'Sin categoría')
@@ -231,8 +258,10 @@ def index():
         alerta = False
         restante = 0
 
-    cur.close()
-    conn.close()
+    if 'cur' in locals():
+        cur.close()
+    if 'conn' in locals():
+        conn.close()
 
     return render_template(
         "index.html",
@@ -267,26 +296,30 @@ def agregar():
 
     q = quincena(fecha)
 
-    conn = get_conn()
-    cur = conn.cursor()
+    try:
+        conn = get_conn()
+        cur = conn.cursor()
 
-    if tipo == "ingreso":
-        cur.execute("""
-            INSERT INTO ingresos (monto, fecha, quincena, user_id)
-            VALUES (%s, %s, %s, %s)
-        """, (monto, fecha, q, user_id))
-    else:
-        nombre = request.form.get("nombre", "")
-        categoria = request.form.get("categoria", "Otros")
+        if tipo == "ingreso":
+            cur.execute("""
+                INSERT INTO ingresos (monto, fecha, quincena, user_id)
+                VALUES (%s, %s, %s, %s)
+            """, (monto, fecha, q, user_id))
+        else:
+            nombre = request.form.get("nombre", "")
+            categoria = request.form.get("categoria", "Otros")
 
-        cur.execute("""
-            INSERT INTO gastos (nombre, monto, fecha, quincena, categoria, user_id)
-            VALUES (%s, %s, %s, %s, %s, %s)
-        """, (nombre, monto, fecha, q, categoria, user_id))
+            cur.execute("""
+                INSERT INTO gastos (nombre, monto, fecha, quincena, categoria, user_id)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, (nombre, monto, fecha, q, categoria, user_id))
 
-    conn.commit()
-    cur.close()
-    conn.close()
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        print("Agregar DB error:", e)
+        return "Error de base de datos. Intenta más tarde."
 
     return redirect("/")
 
@@ -295,20 +328,27 @@ def agregar():
 @app.route("/guardar_deuda", methods=["POST"])
 def guardar_deuda():
     user_id = session.get("user_id")
-    total = float(request.form["total"])
+    try:
+        total = float(request.form["total"])
+    except Exception:
+        total = 0
 
-    conn = get_conn()
-    cur = conn.cursor()
+    try:
+        conn = get_conn()
+        cur = conn.cursor()
 
-    cur.execute("DELETE FROM deudas WHERE user_id=%s", (user_id,))
-    cur.execute("""
-        INSERT INTO deudas (user_id, total)
-        VALUES (%s, %s)
-    """, (user_id, total))
+        cur.execute("DELETE FROM deudas WHERE user_id=%s", (user_id,))
+        cur.execute("""
+            INSERT INTO deudas (user_id, total)
+            VALUES (%s, %s)
+        """, (user_id, total))
 
-    conn.commit()
-    cur.close()
-    conn.close()
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        print("Guardar deuda DB error:", e)
+        return "Error de base de datos. Intenta más tarde."
 
     return redirect("/")
 
