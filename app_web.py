@@ -17,6 +17,7 @@ def crear_tablas():
     conn = get_conn()
     cur = conn.cursor()
 
+    # 👤 USUARIOS
     cur.execute("""
     CREATE TABLE IF NOT EXISTS usuarios (
         id SERIAL PRIMARY KEY,
@@ -25,6 +26,7 @@ def crear_tablas():
     );
     """)
 
+    # 💰 INGRESOS
     cur.execute("""
     CREATE TABLE IF NOT EXISTS ingresos (
         id SERIAL PRIMARY KEY,
@@ -35,6 +37,7 @@ def crear_tablas():
     );
     """)
 
+    # 💸 GASTOS
     cur.execute("""
     CREATE TABLE IF NOT EXISTS gastos (
         id SERIAL PRIMARY KEY,
@@ -47,12 +50,26 @@ def crear_tablas():
     );
     """)
 
+    # 💳 DEUDAS
     cur.execute("""
     CREATE TABLE IF NOT EXISTS deudas (
         id SERIAL PRIMARY KEY,
         user_id INT,
         total FLOAT
     );
+    """)
+
+    # 🔥 FIX AUTOMÁTICO: agrega columna si no existe
+    cur.execute("""
+    DO $$
+    BEGIN
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_name='gastos' AND column_name='categoria'
+        ) THEN
+            ALTER TABLE gastos ADD COLUMN categoria TEXT;
+        END IF;
+    END $$;
     """)
 
     conn.commit()
@@ -71,8 +88,14 @@ def login():
         conn = get_conn()
         cur = conn.cursor()
 
-        cur.execute("SELECT id FROM usuarios WHERE username=%s AND password=%s", (user, password))
+        cur.execute(
+            "SELECT id FROM usuarios WHERE username=%s AND password=%s",
+            (user, password)
+        )
         result = cur.fetchone()
+
+        cur.close()
+        conn.close()
 
         if result:
             session["user_id"] = result[0]
@@ -81,6 +104,7 @@ def login():
         return "Credenciales incorrectas"
 
     return render_template("login.html")
+
 
 # 🧾 REGISTRO
 @app.route("/registro", methods=["GET", "POST"])
@@ -92,15 +116,23 @@ def registro():
         conn = get_conn()
         cur = conn.cursor()
 
-        cur.execute("INSERT INTO usuarios (username, password) VALUES (%s, %s)", (user, password))
+        try:
+            cur.execute(
+                "INSERT INTO usuarios (username, password) VALUES (%s, %s)",
+                (user, password)
+            )
+            conn.commit()
+        except:
+            conn.rollback()
+            return "El usuario ya existe"
 
-        conn.commit()
         cur.close()
         conn.close()
 
         return redirect("/login")
 
     return render_template("registro.html")
+
 
 # 🏠 HOME
 @app.route("/")
@@ -131,10 +163,20 @@ def index():
         """, (user_id, mes))
         ingresos = cur.fetchall()
     else:
-        cur.execute("SELECT fecha, nombre, monto, quincena, categoria FROM gastos WHERE user_id=%s ORDER BY fecha DESC", (user_id,))
+        cur.execute("""
+            SELECT fecha, nombre, monto, quincena, categoria 
+            FROM gastos 
+            WHERE user_id=%s 
+            ORDER BY fecha DESC
+        """, (user_id,))
         gastos = cur.fetchall()
 
-        cur.execute("SELECT fecha, monto, quincena FROM ingresos WHERE user_id=%s ORDER BY fecha DESC", (user_id,))
+        cur.execute("""
+            SELECT fecha, monto, quincena 
+            FROM ingresos 
+            WHERE user_id=%s 
+            ORDER BY fecha DESC
+        """, (user_id,))
         ingresos = cur.fetchall()
 
     total_ingresos = sum(i[1] for i in ingresos) if ingresos else 0
@@ -148,7 +190,11 @@ def index():
     cur.execute("SELECT total FROM deudas WHERE user_id=%s", (user_id,))
     deuda = cur.fetchone()
 
-    cur.execute("SELECT SUM(monto) FROM gastos WHERE user_id=%s AND categoria='Deuda'", (user_id,))
+    cur.execute("""
+        SELECT SUM(monto) 
+        FROM gastos 
+        WHERE user_id=%s AND categoria='Deuda'
+    """, (user_id,))
     pagado = cur.fetchone()[0] or 0
 
     restante = (deuda[0] - pagado) if deuda else 0
@@ -168,6 +214,7 @@ def index():
         mes_actual=mes
     )
 
+
 # ➕ AGREGAR
 @app.route("/agregar", methods=["POST"])
 def agregar():
@@ -182,24 +229,25 @@ def agregar():
     cur = conn.cursor()
 
     if tipo == "ingreso":
-        cur.execute(
-            "INSERT INTO ingresos (monto, fecha, quincena, user_id) VALUES (%s, %s, %s, %s)",
-            (monto, fecha, q, user_id)
-        )
+        cur.execute("""
+            INSERT INTO ingresos (monto, fecha, quincena, user_id)
+            VALUES (%s, %s, %s, %s)
+        """, (monto, fecha, q, user_id))
     else:
         nombre = request.form["nombre"]
         categoria = request.form["categoria"]
 
-        cur.execute(
-            "INSERT INTO gastos (nombre, monto, fecha, quincena, categoria, user_id) VALUES (%s, %s, %s, %s, %s, %s)",
-            (nombre, monto, fecha, q, categoria, user_id)
-        )
+        cur.execute("""
+            INSERT INTO gastos (nombre, monto, fecha, quincena, categoria, user_id)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """, (nombre, monto, fecha, q, categoria, user_id))
 
     conn.commit()
     cur.close()
     conn.close()
 
     return redirect("/")
+
 
 # 💳 GUARDAR DEUDA
 @app.route("/guardar_deuda", methods=["POST"])
@@ -211,13 +259,17 @@ def guardar_deuda():
     cur = conn.cursor()
 
     cur.execute("DELETE FROM deudas WHERE user_id=%s", (user_id,))
-    cur.execute("INSERT INTO deudas (user_id, total) VALUES (%s, %s)", (user_id, total))
+    cur.execute("""
+        INSERT INTO deudas (user_id, total)
+        VALUES (%s, %s)
+    """, (user_id, total))
 
     conn.commit()
     cur.close()
     conn.close()
 
     return redirect("/")
+
 
 if __name__ == "__main__":
     app.run()
