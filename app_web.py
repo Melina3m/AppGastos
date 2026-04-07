@@ -47,20 +47,51 @@ crear_tablas()
 # 🏠 HOME
 @app.route("/")
 def index():
+    mes = request.args.get("mes")
+
     conn = get_conn()
     cur = conn.cursor()
 
-    cur.execute("SELECT fecha, nombre, monto, quincena FROM gastos ORDER BY fecha DESC")
-    gastos = cur.fetchall()
+    if mes:
+        cur.execute("""
+            SELECT fecha, nombre, monto, quincena 
+            FROM gastos 
+            WHERE EXTRACT(MONTH FROM fecha) = %s
+            ORDER BY fecha DESC
+        """, (mes,))
+        
+        cur.execute("""
+            SELECT fecha, monto, quincena 
+            FROM ingresos 
+            WHERE EXTRACT(MONTH FROM fecha) = %s
+            ORDER BY fecha DESC
+        """, (mes,))
+    else:
+        cur.execute("SELECT fecha, nombre, monto, quincena FROM gastos ORDER BY fecha DESC")
+        gastos = cur.fetchall()
 
-    cur.execute("SELECT fecha, monto, quincena FROM ingresos ORDER BY fecha DESC")
+        cur.execute("SELECT fecha, monto, quincena FROM ingresos ORDER BY fecha DESC")
+        ingresos = cur.fetchall()
+
+    gastos = cur.fetchall()
     ingresos = cur.fetchall()
+
+    # 💰 cálculos
+    total_ingresos = sum(i[1] for i in ingresos) if ingresos else 0
+    total_gastos = sum(g[2] for g in gastos) if gastos else 0
+    saldo = total_ingresos - total_gastos
 
     cur.close()
     conn.close()
 
-    return render_template("index.html", gastos=gastos, ingresos=ingresos)
-
+    return render_template(
+        "index.html",
+        gastos=gastos,
+        ingresos=ingresos,
+        saldo=saldo,
+        total_ingresos=total_ingresos,
+        total_gastos=total_gastos
+    )
 # ➕ AGREGAR
 @app.route("/agregar", methods=["POST"])
 def agregar():

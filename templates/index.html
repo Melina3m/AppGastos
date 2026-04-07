@@ -5,16 +5,11 @@
     <title>Control de Gastos</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
-    <!-- Fuente elegante -->
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500&display=swap" rel="stylesheet">
-
-    <!-- Iconos -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
 
     <style>
-        * {
-            box-sizing: border-box;
-        }
+        * { box-sizing: border-box; }
 
         body {
             font-family: 'Poppins', sans-serif;
@@ -24,7 +19,6 @@
             margin: 0;
         }
 
-        /* CONTENEDOR CENTRADO */
         .container {
             max-width: 500px;
             margin: auto;
@@ -32,8 +26,6 @@
 
         h2 {
             text-align: center;
-            font-weight: 500;
-            margin-bottom: 20px;
             color: #5a4a4a;
         }
 
@@ -41,37 +33,21 @@
             background: white;
             padding: 15px;
             border-radius: 15px;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
-            margin-bottom: 20px;
+            margin-bottom: 15px;
         }
 
-
-        input,
-        select,
-        button {
+        input, select, button {
             width: 100%;
             margin: 8px 0;
             padding: 12px;
             border-radius: 10px;
             border: 1px solid #ddd;
-            font-size: 14px;
         }
 
         button {
             background: #d8a7b1;
             color: white;
             border: none;
-            font-weight: 500;
-        }
-
-        button:hover {
-            background: #c48c98;
-        }
-
-        h3 {
-            margin-top: 20px;
-            color: #5a4a4a;
-            font-weight: 500;
         }
 
         .card {
@@ -79,36 +55,32 @@
             padding: 12px;
             margin-top: 10px;
             border-radius: 12px;
-            box-shadow: 0 3px 8px rgba(0, 0, 0, 0.05);
             display: flex;
             justify-content: space-between;
-            align-items: center;
         }
 
-        .info {
+        .ingreso { color: green; }
+        .gasto { color: red; }
+
+        .meses {
             display: flex;
-            flex-direction: column;
+            overflow-x: auto;
+            gap: 10px;
+            margin-bottom: 15px;
         }
 
-        .nombre {
-            font-weight: 500;
+        .meses a {
+            text-decoration: none;
+            padding: 8px 12px;
+            background: white;
+            border-radius: 10px;
+            font-size: 13px;
+            color: #5a4a4a;
         }
 
-        .fecha {
-            font-size: 12px;
-            color: #888;
-        }
-
-        .monto {
-            font-weight: 500;
-        }
-
-        .ingreso {
-            color: #4CAF50;
-        }
-
-        .gasto {
-            color: #d9534f;
+        .meses a.activo {
+            background: #d8a7b1;
+            color: white;
         }
     </style>
 </head>
@@ -117,7 +89,25 @@
 
 <div class="container">
 
-    <h2><i class="fa-solid fa-wallet"></i> Control de Gastos</h2>
+    <!-- 💰 RESUMEN -->
+    <div class="card" style="flex-direction: column;">
+        <strong>Saldo</strong>
+        <h2>$ {{ "{:,.0f}".format(saldo).replace(",", ".") }}</h2>
+        <small>Ingresos: ${{ "{:,.0f}".format(total_ingresos).replace(",", ".") }}</small>
+        <small>Gastos: ${{ "{:,.0f}".format(total_gastos).replace(",", ".") }}</small>
+    </div>
+
+    <!-- 📅 MESES -->
+    <div class="meses">
+        {% for m, nombre in [(1,'Ene'),(2,'Feb'),(3,'Mar'),(4,'Abr'),(5,'May'),(6,'Jun'),
+                             (7,'Jul'),(8,'Ago'),(9,'Sep'),(10,'Oct'),(11,'Nov'),(12,'Dic')] %}
+            <a href="/?mes={{m}}" class="{% if mes_actual == m|string %}activo{% endif %}">
+                {{nombre}}
+            </a>
+        {% endfor %}
+    </div>
+
+    <h2>Control de Gastos</h2>
 
     <form method="POST" action="/agregar">
         <select name="tipo">
@@ -125,44 +115,26 @@
             <option value="gasto">Gasto</option>
         </select>
 
-        <input type="text" name="nombre" placeholder="Descripción (si es gasto)">
-        <input type="number" name="monto" placeholder="Monto" required>
+        <input type="text" name="nombre" placeholder="Descripción">
+        <input type="number" name="monto" required>
         <input type="date" name="fecha" required>
 
-        <button type="submit">
-            <i class="fa-solid fa-plus"></i> Guardar
-        </button>
+        <button>Guardar</button>
     </form>
 
-    <h3><i class="fa-solid fa-list"></i> Movimientos</h3>
+    <h3>Movimientos</h3>
 
-    <!-- GASTOS -->
     {% for g in gastos %}
     <div class="card">
-        <div class="info">
-            <span class="nombre">
-                <i class="fa-solid fa-receipt"></i> {{g[1]}}
-            </span>
-            <span class="fecha">{{g[0]}} | {{g[3]}}</span>
-        </div>
-        <span class="monto gasto">
-            - ${{ "{:,.0f}".format(g[2]).replace(",", ".") }}
-        </span>
+        <span>{{g[1]}} ({{g[0]}})</span>
+        <span class="gasto">- ${{ "{:,.0f}".format(g[2]).replace(",", ".") }}</span>
     </div>
     {% endfor %}
 
-    <!-- INGRESOS -->
     {% for i in ingresos %}
     <div class="card">
-        <div class="info">
-            <span class="nombre">
-                <i class="fa-solid fa-arrow-down"></i> Ingreso
-            </span>
-            <span class="fecha">{{i[0]}} | {{i[2]}}</span>
-        </div>
-        <span class="monto ingreso">
-            + ${{ "{:,.0f}".format(i[1]).replace(",", ".") }}
-        </span>
+        <span>Ingreso ({{i[0]}})</span>
+        <span class="ingreso">+ ${{ "{:,.0f}".format(i[1]).replace(",", ".") }}</span>
     </div>
     {% endfor %}
 
@@ -170,5 +142,3 @@
 
 </body>
 </html>
-
-    <!-- INGRESfffff-OS ->
