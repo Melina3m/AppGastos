@@ -416,5 +416,30 @@ def guardar_deuda():
     return redirect("/")
 
 
+# 🗑️ BORRAR DATOS
+@app.route("/borrar_datos", methods=["POST"])
+def borrar_datos():
+    user_id = session.get("user_id")
+    if not user_id:
+        return redirect("/login")
+
+    try:
+        conn = get_conn()
+        cur = conn.cursor()
+
+        cur.execute("DELETE FROM ingresos WHERE user_id = %s", (user_id,))
+        cur.execute("DELETE FROM gastos WHERE user_id = %s", (user_id,))
+        cur.execute("DELETE FROM deudas WHERE user_id = %s", (user_id,))
+
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        print("Borrar datos error:", e)
+        return "Error al borrar datos."
+
+    return redirect("/")
+
+
 if __name__ == "__main__":
     app.run()
