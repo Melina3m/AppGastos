@@ -83,6 +83,15 @@ def crear_tablas():
 crear_tablas()
 
 
+@app.before_request
+def require_login():
+    rutas_publicas = ["/login", "/registro", "/static"]
+
+    if not session.get("user_id"):
+        if not any(request.path.startswith(r) for r in rutas_publicas):
+            return redirect("/login")
+
+
 # 🔐 LOGIN
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -143,6 +152,11 @@ def registro():
 
 # 🏠 HOME
 @app.route("/")
+def home():
+    return redirect("/dashboard")
+
+
+@app.route("/dashboard")
 def index():
     user_id = session.get("user_id")
     if not user_id:
@@ -234,13 +248,23 @@ def index():
 
 
 # ➕ AGREGAR
-@app.route("/agregar", methods=["POST"])
+@app.route("/agregar", methods=["GET", "POST"])
 def agregar():
+    if request.method == "GET":
+        return redirect("/")
+
     user_id = session.get("user_id")
 
     tipo = request.form.get("tipo")
-    monto = float(request.form.get("monto", 0))
+    try:
+        monto = float(request.form.get("monto", 0))
+    except Exception:
+        monto = 0
+
     fecha = request.form.get("fecha")
+    if not fecha:
+        return redirect("/")
+
     q = quincena(fecha)
 
     conn = get_conn()
