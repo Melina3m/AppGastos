@@ -83,21 +83,24 @@ def login():
     return render_template("login.html")
 
 # 🧾 REGISTRO
-@app.route("/registro", methods=["POST"])
+@app.route("/registro", methods=["GET", "POST"])
 def registro():
-    user = request.form["username"]
-    password = request.form["password"]
+    if request.method == "POST":
+        user = request.form["username"]
+        password = request.form["password"]
 
-    conn = get_conn()
-    cur = conn.cursor()
+        conn = get_conn()
+        cur = conn.cursor()
 
-    cur.execute("INSERT INTO usuarios (username, password) VALUES (%s, %s)", (user, password))
+        cur.execute("INSERT INTO usuarios (username, password) VALUES (%s, %s)", (user, password))
 
-    conn.commit()
-    cur.close()
-    conn.close()
+        conn.commit()
+        cur.close()
+        conn.close()
 
-    return redirect("/login")
+        return redirect("/login")
+
+    return render_template("registro.html")
 
 # 🏠 HOME
 @app.route("/")
