@@ -9,7 +9,9 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
 
     <style>
-        * { box-sizing: border-box; }
+        * {
+            box-sizing: border-box;
+        }
 
         body {
             font-family: 'Poppins', sans-serif;
@@ -36,7 +38,9 @@
             margin-bottom: 15px;
         }
 
-        input, select, button {
+        input,
+        select,
+        button {
             width: 100%;
             margin: 8px 0;
             padding: 12px;
@@ -59,8 +63,13 @@
             justify-content: space-between;
         }
 
-        .ingreso { color: green; }
-        .gasto { color: red; }
+        .ingreso {
+            color: green;
+        }
+
+        .gasto {
+            color: red;
+        }
 
         .meses {
             display: flex;
@@ -87,28 +96,72 @@
 
 <body>
 
-<div class="container">
+    <div class="container">
 
-    <!-- 💰 RESUMEN -->
-    <div class="card" style="flex-direction: column;">
-        <strong>Saldo</strong>
-        <h2>$ {{ "{:,.0f}".format(saldo).replace(",", ".") }}</h2>
-        <small>Ingresos: ${{ "{:,.0f}".format(total_ingresos).replace(",", ".") }}</small>
-        <small>Gastos: ${{ "{:,.0f}".format(total_gastos).replace(",", ".") }}</small>
-    </div>
+        <!-- 💰 RESUMEN -->
+        <div class="card" style="flex-direction: column;">
+            <strong>Saldo</strong>
+            <h2>$ {{ "{:,.0f}".format(saldo).replace(",", ".") }}</h2>
+            <small>Ingresos: ${{ "{:,.0f}".format(total_ingresos).replace(",", ".") }}</small>
+            <small>Gastos: ${{ "{:,.0f}".format(total_gastos).replace(",", ".") }}</small>
+        </div>
 
-    <!-- 📅 MESES -->
-    <div class="meses">
-        {% for m, nombre in [(1,'Ene'),(2,'Feb'),(3,'Mar'),(4,'Abr'),(5,'May'),(6,'Jun'),
-                             (7,'Jul'),(8,'Ago'),(9,'Sep'),(10,'Oct'),(11,'Nov'),(12,'Dic')] %}
+        <!-- 📅 MESES -->
+        <div class="meses">
+            {% for m, nombre in [(1,'Ene'),(2,'Feb'),(3,'Mar'),(4,'Abr'),(5,'May'),(6,'Jun'),
+            (7,'Jul'),(8,'Ago'),(9,'Sep'),(10,'Oct'),(11,'Nov'),(12,'Dic')] %}
             <a href="/?mes={{m}}" class="{% if mes_actual == m|string %}activo{% endif %}">
                 {{nombre}}
             </a>
+            {% endfor %}
+        </div>
+
+        <h2>Control de Gastos</h2>
+
+        <form method="POST" action="/agregar">
+            <select name="tipo">
+                <option value="ingreso">Ingreso</option>
+                <option value="gasto">Gasto</option>
+            </select>
+
+            <input type="text" name="nombre" placeholder="Descripción">
+            <input type="number" name="monto" required>
+            <input type="date" name="fecha" required>
+
+            <button>Guardar</button>
+        </form>
+
+        <h3>Movimientos</h3>
+
+        {% for g in gastos %}
+        <div class="card">
+            <span>{{g[1]}} ({{g[0]}})</span>
+            <span class="gasto">- ${{ "{:,.0f}".format(g[2]).replace(",", ".") }}</span>
+        </div>
         {% endfor %}
+
+        {% for i in ingresos %}
+        <div class="card">
+            <span>Ingreso ({{i[0]}})</span>
+            <span class="ingreso">+ ${{ "{:,.0f}".format(i[1]).replace(",", ".") }}</span>
+        </div>
+        {% endfor %}
+
+    </div>
+    <!-- ALERTA -->
+    {% if alerta %}
+    <div class="card" style="background:#ffe5e5; color:#a94442;">
+        Has gastado más del 80% de tus ingresos
+    </div>
+    {% endif %}
+
+    <!-- DEUDA -->
+    <div class="card">
+        <strong>Deuda restante</strong>
+        <span>$ {{ "{:,.0f}".format(restante).replace(",", ".") }}</span>
     </div>
 
-    <h2>Control de Gastos</h2>
-
+    <!-- FORM -->
     <form method="POST" action="/agregar">
         <select name="tipo">
             <option value="ingreso">Ingreso</option>
@@ -116,29 +169,19 @@
         </select>
 
         <input type="text" name="nombre" placeholder="Descripción">
+
+        <select name="categoria">
+            <option>Comida</option>
+            <option>Transporte</option>
+            <option>Deuda</option>
+            <option>Otros</option>
+        </select>
+
         <input type="number" name="monto" required>
         <input type="date" name="fecha" required>
 
         <button>Guardar</button>
     </form>
-
-    <h3>Movimientos</h3>
-
-    {% for g in gastos %}
-    <div class="card">
-        <span>{{g[1]}} ({{g[0]}})</span>
-        <span class="gasto">- ${{ "{:,.0f}".format(g[2]).replace(",", ".") }}</span>
-    </div>
-    {% endfor %}
-
-    {% for i in ingresos %}
-    <div class="card">
-        <span>Ingreso ({{i[0]}})</span>
-        <span class="ingreso">+ ${{ "{:,.0f}".format(i[1]).replace(",", ".") }}</span>
-    </div>
-    {% endfor %}
-
-</div>
-
 </body>
+
 </html>

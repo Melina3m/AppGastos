@@ -1,30 +1,37 @@
-from flask import Flask, render_template, request, redirect
+from flask import Flask, render_template, request, redirect, session
 import psycopg2
 import os
 
 app = Flask(__name__)
+app.secret_key = "clave_secreta"
 
-# 🔑 conexión a la BD (Render usa esta variable automáticamente)
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 def get_conn():
-    return psycopg2.connect(DATABASE_URL)
+    return psycopg2.connect(DATABASE_URL, sslmode='require')
 
-# 🧠 lógica quincena
 def quincena(fecha):
     return "Q1" if int(fecha.split("-")[2]) <= 15 else "Q2"
 
-# 🧱 crear tablas (solo si no existen)
 def crear_tablas():
     conn = get_conn()
     cur = conn.cursor()
+
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS usuarios (
+        id SERIAL PRIMARY KEY,
+        username TEXT UNIQUE,
+        password TEXT
+    );
+    """)
 
     cur.execute("""
     CREATE TABLE IF NOT EXISTS ingresos (
         id SERIAL PRIMARY KEY,
         monto FLOAT,
         fecha DATE,
-        quincena TEXT
+        quincena TEXT,
+        user_id INT
     );
     """)
 
@@ -34,7 +41,17 @@ def crear_tablas():
         nombre TEXT,
         monto FLOAT,
         fecha DATE,
-        quincena TEXT
+        quincena TEXT,
+        categoria TEXT,
+        user_id INT
+    );
+    """)
+
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS deudas (
+        id SERIAL PRIMARY KEY,
+        user_id INT,
+        total FLOAT
     );
     """)
 
@@ -44,9 +61,51 @@ def crear_tablas():
 
 crear_tablas()
 
+# 🔐 LOGIN
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        user = request.form["username"]
+        password = request.form["password"]
+
+        conn = get_conn()
+        cur = conn.cursor()
+
+        cur.execute("SELECT id FROM usuarios WHERE username=%s AND password=%s", (user, password))
+        result = cur.fetchone()
+
+        if result:
+            session["user_id"] = result[0]
+            return redirect("/")
+
+        return "Credenciales incorrectas"
+
+    return render_template("login.html")
+
+# 🧾 REGISTRO
+@app.route("/registro", methods=["POST"])
+def registro():
+    user = request.form["username"]
+    password = request.form["password"]
+
+    conn = get_conn()
+    cur = conn.cursor()
+
+    cur.execute("INSERT INTO usuarios (username, password) VALUES (%s, %s)", (user, password))
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return redirect("/login")
+
 # 🏠 HOME
 @app.route("/")
 def index():
+    user_id = session.get("user_id")
+    if not user_id:
+        return redirect("/login")
+
     mes = request.args.get("mes")
 
     conn = get_conn()
@@ -54,32 +113,42 @@ def index():
 
     if mes:
         cur.execute("""
-            SELECT fecha, nombre, monto, quincena 
+            SELECT fecha, nombre, monto, quincena, categoria
             FROM gastos 
-            WHERE EXTRACT(MONTH FROM fecha) = %s
+            WHERE user_id=%s AND EXTRACT(MONTH FROM fecha) = %s
             ORDER BY fecha DESC
-        """, (mes,))
-        
+        """, (user_id, mes))
+        gastos = cur.fetchall()
+
         cur.execute("""
             SELECT fecha, monto, quincena 
             FROM ingresos 
-            WHERE EXTRACT(MONTH FROM fecha) = %s
+            WHERE user_id=%s AND EXTRACT(MONTH FROM fecha) = %s
             ORDER BY fecha DESC
-        """, (mes,))
+        """, (user_id, mes))
+        ingresos = cur.fetchall()
     else:
-        cur.execute("SELECT fecha, nombre, monto, quincena FROM gastos ORDER BY fecha DESC")
+        cur.execute("SELECT fecha, nombre, monto, quincena, categoria FROM gastos WHERE user_id=%s ORDER BY fecha DESC", (user_id,))
         gastos = cur.fetchall()
 
-        cur.execute("SELECT fecha, monto, quincena FROM ingresos ORDER BY fecha DESC")
+        cur.execute("SELECT fecha, monto, quincena FROM ingresos WHERE user_id=%s ORDER BY fecha DESC", (user_id,))
         ingresos = cur.fetchall()
 
-    gastos = cur.fetchall()
-    ingresos = cur.fetchall()
-
-    # 💰 cálculos
     total_ingresos = sum(i[1] for i in ingresos) if ingresos else 0
     total_gastos = sum(g[2] for g in gastos) if gastos else 0
     saldo = total_ingresos - total_gastos
+
+    # 🚨 ALERTA
+    alerta = total_gastos > total_ingresos * 0.8 if total_ingresos else False
+
+    # 💳 DEUDA
+    cur.execute("SELECT total FROM deudas WHERE user_id=%s", (user_id,))
+    deuda = cur.fetchone()
+
+    cur.execute("SELECT SUM(monto) FROM gastos WHERE user_id=%s AND categoria='Deuda'", (user_id,))
+    pagado = cur.fetchone()[0] or 0
+
+    restante = (deuda[0] - pagado) if deuda else 0
 
     cur.close()
     conn.close()
@@ -90,11 +159,17 @@ def index():
         ingresos=ingresos,
         saldo=saldo,
         total_ingresos=total_ingresos,
-        total_gastos=total_gastos
+        total_gastos=total_gastos,
+        alerta=alerta,
+        restante=restante,
+        mes_actual=mes
     )
+
 # ➕ AGREGAR
 @app.route("/agregar", methods=["POST"])
 def agregar():
+    user_id = session.get("user_id")
+
     tipo = request.form["tipo"]
     monto = float(request.form["monto"])
     fecha = request.form["fecha"]
@@ -105,14 +180,16 @@ def agregar():
 
     if tipo == "ingreso":
         cur.execute(
-            "INSERT INTO ingresos (monto, fecha, quincena) VALUES (%s, %s, %s)",
-            (monto, fecha, q)
+            "INSERT INTO ingresos (monto, fecha, quincena, user_id) VALUES (%s, %s, %s, %s)",
+            (monto, fecha, q, user_id)
         )
     else:
         nombre = request.form["nombre"]
+        categoria = request.form["categoria"]
+
         cur.execute(
-            "INSERT INTO gastos (nombre, monto, fecha, quincena) VALUES (%s, %s, %s, %s)",
-            (nombre, monto, fecha, q)
+            "INSERT INTO gastos (nombre, monto, fecha, quincena, categoria, user_id) VALUES (%s, %s, %s, %s, %s, %s)",
+            (nombre, monto, fecha, q, categoria, user_id)
         )
 
     conn.commit()
@@ -121,6 +198,23 @@ def agregar():
 
     return redirect("/")
 
-# 🚀 RUN
+# 💳 GUARDAR DEUDA
+@app.route("/guardar_deuda", methods=["POST"])
+def guardar_deuda():
+    user_id = session.get("user_id")
+    total = float(request.form["total"])
+
+    conn = get_conn()
+    cur = conn.cursor()
+
+    cur.execute("DELETE FROM deudas WHERE user_id=%s", (user_id,))
+    cur.execute("INSERT INTO deudas (user_id, total) VALUES (%s, %s)", (user_id, total))
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return redirect("/")
+
 if __name__ == "__main__":
     app.run()
