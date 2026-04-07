@@ -221,6 +221,8 @@ def registro():
 # 🏠 HOME
 @app.route("/")
 def home():
+    if not session.get("user_id"):
+        return redirect("/login")
     return redirect("/dashboard")
 
 
