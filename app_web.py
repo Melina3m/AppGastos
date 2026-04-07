@@ -238,9 +238,9 @@ def index():
 def agregar():
     user_id = session.get("user_id")
 
-    tipo = request.form["tipo"]
-    monto = float(request.form["monto"])
-    fecha = request.form["fecha"]
+    tipo = request.form.get("tipo")
+    monto = float(request.form.get("monto", 0))
+    fecha = request.form.get("fecha")
     q = quincena(fecha)
 
     conn = get_conn()
@@ -252,8 +252,8 @@ def agregar():
             VALUES (%s, %s, %s, %s)
         """, (monto, fecha, q, user_id))
     else:
-        nombre = request.form["nombre"]
-        categoria = request.form["categoria"]
+        nombre = request.form.get("nombre", "")
+        categoria = request.form.get("categoria", "Otros")
 
         cur.execute("""
             INSERT INTO gastos (nombre, monto, fecha, quincena, categoria, user_id)
