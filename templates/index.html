@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <title>Control de Gastos</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -11,11 +12,22 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
 
     <style>
+        * {
+            box-sizing: border-box;
+        }
+
         body {
             font-family: 'Poppins', sans-serif;
             background: #f7f3f5;
             color: #333;
-            padding: 20px;
+            padding: 15px;
+            margin: 0;
+        }
+
+        /* CONTENEDOR CENTRADO */
+        .container {
+            max-width: 500px;
+            margin: auto;
         }
 
         h2 {
@@ -29,11 +41,14 @@
             background: white;
             padding: 15px;
             border-radius: 15px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
             margin-bottom: 20px;
         }
 
-        input, select, button {
+
+        input,
+        select,
+        button {
             width: 100%;
             margin: 8px 0;
             padding: 12px;
@@ -64,7 +79,7 @@
             padding: 12px;
             margin-top: 10px;
             border-radius: 12px;
-            box-shadow: 0 3px 8px rgba(0,0,0,0.05);
+            box-shadow: 0 3px 8px rgba(0, 0, 0, 0.05);
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -100,46 +115,60 @@
 
 <body>
 
-<h2><i class="fa-solid fa-wallet"></i> Control de Gastos</h2>
+<div class="container">
 
-<form method="POST" action="/agregar">
-    <select name="tipo">
-        <option value="ingreso">Ingreso</option>
-        <option value="gasto">Gasto</option>
-    </select>
+    <h2><i class="fa-solid fa-wallet"></i> Control de Gastos</h2>
 
-    <input type="text" name="nombre" placeholder="Descripción (si es gasto)">
-    <input type="number" name="monto" placeholder="Monto" required>
-    <input type="date" name="fecha" required>
+    <form method="POST" action="/agregar">
+        <select name="tipo">
+            <option value="ingreso">Ingreso</option>
+            <option value="gasto">Gasto</option>
+        </select>
 
-    <button type="submit">
-        <i class="fa-solid fa-plus"></i> Guardar
-    </button>
-</form>
+        <input type="text" name="nombre" placeholder="Descripción (si es gasto)">
+        <input type="number" name="monto" placeholder="Monto" required>
+        <input type="date" name="fecha" required>
 
-<h3><i class="fa-solid fa-list"></i> Movimientos</h3>
+        <button type="submit">
+            <i class="fa-solid fa-plus"></i> Guardar
+        </button>
+    </form>
 
-<!-- GASTOS -->
-{% for g in gastos %}
-<div class="card">
-    <div class="info">
-        <span class="nombre"><i class="fa-solid fa-receipt"></i> {{g[1]}}</span>
-        <span class="fecha">{{g[0]}} | {{g[3]}}</span>
+    <h3><i class="fa-solid fa-list"></i> Movimientos</h3>
+
+    <!-- GASTOS -->
+    {% for g in gastos %}
+    <div class="card">
+        <div class="info">
+            <span class="nombre">
+                <i class="fa-solid fa-receipt"></i> {{g[1]}}
+            </span>
+            <span class="fecha">{{g[0]}} | {{g[3]}}</span>
+        </div>
+        <span class="monto gasto">
+            - ${{ "{:,.0f}".format(g[2]).replace(",", ".") }}
+        </span>
     </div>
-    <span class="monto gasto">- ${{g[2]}}</span>
-</div>
-{% endfor %}
+    {% endfor %}
 
-<!-- INGRESOS -->
-{% for i in ingresos %}
-<div class="card">
-    <div class="info">
-        <span class="nombre"><i class="fa-solid fa-arrow-down"></i> Ingreso</span>
-        <span class="fecha">{{i[0]}} | {{i[2]}}</span>
+    <!-- INGRESOS -->
+    {% for i in ingresos %}
+    <div class="card">
+        <div class="info">
+            <span class="nombre">
+                <i class="fa-solid fa-arrow-down"></i> Ingreso
+            </span>
+            <span class="fecha">{{i[0]}} | {{i[2]}}</span>
+        </div>
+        <span class="monto ingreso">
+            + ${{ "{:,.0f}".format(i[1]).replace(",", ".") }}
+        </span>
     </div>
-    <span class="monto ingreso">+ ${{i[1]}}</span>
+    {% endfor %}
+
 </div>
-{% endfor %}
 
 </body>
 </html>
+
+    <!-- INGRESfffff-OS ->
