@@ -283,16 +283,28 @@ def agregar():
         return redirect("/")
 
     user_id = session.get("user_id")
+    if not user_id:
+        return redirect("/login")
 
     tipo = request.form.get("tipo")
+    if not tipo or tipo not in ["ingreso", "gasto"]:
+        return "Tipo de movimiento inválido. Selecciona ingreso o gasto."
+
     try:
         monto = float(request.form.get("monto", 0))
     except Exception:
-        monto = 0
+        return "Monto inválido. Ingresa un número válido."
 
     fecha = request.form.get("fecha")
     if not fecha:
-        return redirect("/")
+        return "Fecha requerida."
+
+    try:
+        # Validar formato de fecha básico
+        from datetime import datetime
+        datetime.fromisoformat(fecha)
+    except Exception:
+        return "Fecha inválida. Usa formato YYYY-MM-DD."
 
     q = quincena(fecha)
 
@@ -306,7 +318,7 @@ def agregar():
                 VALUES (%s, %s, %s, %s)
             """, (monto, fecha, q, user_id))
         else:
-            nombre = request.form.get("nombre", "")
+            nombre = request.form.get("nombre", "").strip()
             categoria = request.form.get("categoria", "Otros")
 
             cur.execute("""
@@ -318,8 +330,8 @@ def agregar():
         cur.close()
         conn.close()
     except Exception as e:
-        print("Agregar DB error:", e)
-        return "Error de base de datos. Intenta más tarde."
+        print(f"Agregar DB error: tipo={tipo}, monto={monto}, fecha={fecha}, user_id={user_id}, error={e}")
+        return "Error al guardar el registro. Revisa los datos e intenta de nuevo."
 
     return redirect("/")
 
