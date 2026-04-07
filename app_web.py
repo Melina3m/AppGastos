@@ -380,7 +380,14 @@ def agregar():
     return redirect("/")
 
 
-# 💳 GUARDAR DEUDA
+# � LOGOUT
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect("/")
+
+
+# �💳 GUARDAR DEUDA
 @app.route("/guardar_deuda", methods=["POST"])
 def guardar_deuda():
     user_id = session.get("user_id")
