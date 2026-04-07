@@ -78,6 +78,48 @@ def crear_tablas():
         END $$;
         """)
 
+        # Agregar user_id si no existe en ingresos
+        cur.execute("""
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM information_schema.columns 
+                WHERE table_name='ingresos' AND column_name='user_id'
+            ) THEN
+                ALTER TABLE ingresos ADD COLUMN user_id INT;
+                RAISE NOTICE 'Added user_id to ingresos';
+            END IF;
+        END $$;
+        """)
+
+        # Agregar user_id si no existe en gastos
+        cur.execute("""
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM information_schema.columns 
+                WHERE table_name='gastos' AND column_name='user_id'
+            ) THEN
+                ALTER TABLE gastos ADD COLUMN user_id INT;
+                RAISE NOTICE 'Added user_id to gastos';
+            END IF;
+        END $$;
+        """)
+
+        # Agregar user_id si no existe en deudas
+        cur.execute("""
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM information_schema.columns 
+                WHERE table_name='deudas' AND column_name='user_id'
+            ) THEN
+                ALTER TABLE deudas ADD COLUMN user_id INT;
+                RAISE NOTICE 'Added user_id to deudas';
+            END IF;
+        END $$;
+        """)
+
         conn.commit()
         cur.close()
         conn.close()
