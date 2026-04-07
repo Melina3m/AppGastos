@@ -165,7 +165,7 @@
 
         {% for g in gastos %}
         <div class="row">
-            <span>{{g[1]}} ({{g[4]}})</span>
+            <span>{{g[1]}} ({{ g[4] if g|length > 4 else 'Sin categoría' }})</span>
             <span class="gasto">- ${{ "{:,.0f}".format(g[2]).replace(",", ".") }}</span>
         </div>
         {% endfor %}

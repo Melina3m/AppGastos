@@ -156,7 +156,7 @@ def index():
     try:
         if mes:
             cur.execute("""
-                SELECT fecha, nombre, monto, quincena, categoria
+                SELECT fecha, nombre, monto, quincena, COALESCE(categoria, 'Sin categoría')
                 FROM gastos 
                 WHERE user_id=%s AND EXTRACT(MONTH FROM fecha) = %s
                 ORDER BY fecha DESC
@@ -172,7 +172,7 @@ def index():
             ingresos = cur.fetchall()
         else:
             cur.execute("""
-                SELECT fecha, nombre, monto, quincena, categoria 
+                SELECT fecha, nombre, monto, quincena, COALESCE(categoria, 'Sin categoría')
                 FROM gastos 
                 WHERE user_id=%s 
                 ORDER BY fecha DESC
