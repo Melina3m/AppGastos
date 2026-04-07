@@ -7,11 +7,14 @@ app.secret_key = "clave_secreta"
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
+
 def get_conn():
     return psycopg2.connect(DATABASE_URL, sslmode='require')
 
+
 def quincena(fecha):
     return "Q1" if int(fecha.split("-")[2]) <= 15 else "Q2"
+
 
 def crear_tablas():
     conn = get_conn()
@@ -59,7 +62,7 @@ def crear_tablas():
     );
     """)
 
-    # 🔥 FIX AUTOMÁTICO: agrega columna si no existe
+    # 🔥 FIX AUTOMÁTICO (ESTO ES LO IMPORTANTE)
     cur.execute("""
     DO $$
     BEGIN
@@ -76,7 +79,9 @@ def crear_tablas():
     cur.close()
     conn.close()
 
+
 crear_tablas()
+
 
 # 🔐 LOGIN
 @app.route("/login", methods=["GET", "POST"])
@@ -124,6 +129,8 @@ def registro():
             conn.commit()
         except:
             conn.rollback()
+            cur.close()
+            conn.close()
             return "El usuario ya existe"
 
         cur.close()
@@ -146,58 +153,69 @@ def index():
     conn = get_conn()
     cur = conn.cursor()
 
-    if mes:
+    try:
+        if mes:
+            cur.execute("""
+                SELECT fecha, nombre, monto, quincena, categoria
+                FROM gastos 
+                WHERE user_id=%s AND EXTRACT(MONTH FROM fecha) = %s
+                ORDER BY fecha DESC
+            """, (user_id, mes))
+            gastos = cur.fetchall()
+
+            cur.execute("""
+                SELECT fecha, monto, quincena 
+                FROM ingresos 
+                WHERE user_id=%s AND EXTRACT(MONTH FROM fecha) = %s
+                ORDER BY fecha DESC
+            """, (user_id, mes))
+            ingresos = cur.fetchall()
+        else:
+            cur.execute("""
+                SELECT fecha, nombre, monto, quincena, categoria 
+                FROM gastos 
+                WHERE user_id=%s 
+                ORDER BY fecha DESC
+            """, (user_id,))
+            gastos = cur.fetchall()
+
+            cur.execute("""
+                SELECT fecha, monto, quincena 
+                FROM ingresos 
+                WHERE user_id=%s 
+                ORDER BY fecha DESC
+            """, (user_id,))
+            ingresos = cur.fetchall()
+
+        total_ingresos = sum(i[1] for i in ingresos) if ingresos else 0
+        total_gastos = sum(g[2] for g in gastos) if gastos else 0
+        saldo = total_ingresos - total_gastos
+
+        # 🚨 ALERTA
+        alerta = total_gastos > total_ingresos * 0.8 if total_ingresos else False
+
+        # 💳 DEUDA
+        cur.execute("SELECT total FROM deudas WHERE user_id=%s", (user_id,))
+        deuda = cur.fetchone()
+
         cur.execute("""
-            SELECT fecha, nombre, monto, quincena, categoria
+            SELECT SUM(monto) 
             FROM gastos 
-            WHERE user_id=%s AND EXTRACT(MONTH FROM fecha) = %s
-            ORDER BY fecha DESC
-        """, (user_id, mes))
-        gastos = cur.fetchall()
-
-        cur.execute("""
-            SELECT fecha, monto, quincena 
-            FROM ingresos 
-            WHERE user_id=%s AND EXTRACT(MONTH FROM fecha) = %s
-            ORDER BY fecha DESC
-        """, (user_id, mes))
-        ingresos = cur.fetchall()
-    else:
-        cur.execute("""
-            SELECT fecha, nombre, monto, quincena, categoria 
-            FROM gastos 
-            WHERE user_id=%s 
-            ORDER BY fecha DESC
+            WHERE user_id=%s AND categoria='Deuda'
         """, (user_id,))
-        gastos = cur.fetchall()
+        pagado = cur.fetchone()[0] or 0
 
-        cur.execute("""
-            SELECT fecha, monto, quincena 
-            FROM ingresos 
-            WHERE user_id=%s 
-            ORDER BY fecha DESC
-        """, (user_id,))
-        ingresos = cur.fetchall()
+        restante = (deuda[0] - pagado) if deuda else 0
 
-    total_ingresos = sum(i[1] for i in ingresos) if ingresos else 0
-    total_gastos = sum(g[2] for g in gastos) if gastos else 0
-    saldo = total_ingresos - total_gastos
-
-    # 🚨 ALERTA
-    alerta = total_gastos > total_ingresos * 0.8 if total_ingresos else False
-
-    # 💳 DEUDA
-    cur.execute("SELECT total FROM deudas WHERE user_id=%s", (user_id,))
-    deuda = cur.fetchone()
-
-    cur.execute("""
-        SELECT SUM(monto) 
-        FROM gastos 
-        WHERE user_id=%s AND categoria='Deuda'
-    """, (user_id,))
-    pagado = cur.fetchone()[0] or 0
-
-    restante = (deuda[0] - pagado) if deuda else 0
+    except Exception as e:
+        print("ERROR:", e)
+        gastos = []
+        ingresos = []
+        total_ingresos = 0
+        total_gastos = 0
+        saldo = 0
+        alerta = False
+        restante = 0
 
     cur.close()
     conn.close()
